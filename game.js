@@ -101,7 +101,8 @@ var texts = {
     lose: 'lose text, please ignore',
     oops: 'oops text, please ignore',
     restart_level: 'Try, try again...',
-    skip_level: 'Coward.'
+    skip_level: 'Coward.',
+    skip_world: 'Wuss.'
 };
 
 var zorders = {
@@ -516,6 +517,12 @@ function initComponents()
                         switchToNextLevel();
                     }, consts.wait_for_skip);
                 }
+                else if (e.key == Crafty.keys.W) {
+                    Crafty('ProphetText').refreshText(texts.skip_world);
+                    setTimeout(function() {
+                        switchToNextWorld();
+                    }, consts.wait_for_skip);
+                }
                 else if (e.key == Crafty.keys.P) {
                     switchToPrevLevel();
                 }
@@ -627,6 +634,13 @@ function initComponents()
         }
     });
 
+    Crafty.c('gravity_blocking', {
+        init: function() {
+            this.addComponent('gravity_blocking_male_believer', 'gravity_blocking_female_believer',
+                'gravity_blocking_prophet');
+        }
+    });
+
     Crafty.c('Floor', {
         init: function() {
             this.addComponent('2D, DOM, tile_floor');
@@ -725,15 +739,17 @@ function initComponents()
     
     Crafty.c('MBlock', {
         init: function() {
-            // TODO: Actually implement this
-            this.addComponent('Wall, tile_mblock');
+            this.addComponent('2D, DOM, gendered_move_blocking, gravity_blocking_female_believer,' +
+                'tile_mblock');
+            this.blockedTypes = ['Female'];
         }
     });
     
     Crafty.c('WBlock', {
         init: function() {
-            // TODO: Actually implement this
-            this.addComponent('Wall, tile_wblock');
+            this.addComponent('2D, DOM, gendered_move_blocking, gravity_blocking_male_believer, ' +
+                'gravity_blocking_prophet, tile_wblock');
+            this.blockedTypes = ['Male', 'Prophet'];
         }
     });
 
@@ -1095,11 +1111,14 @@ function initComponents()
             this.setupMovement();
 
             this.onHit('move_blocking', this.onHitMoveBlocking);
+            this.onHit('gendered_move_blocking', this.onHitGenderedMoveBlocking);
             this.bind('NewDirection', this.prophetNewDirection);
             this.bind('ConversionStarted', this.onConversionStarted);
             this.bind('ConversionEnded', this.onConversionEnded);
             this.bind('Dying', this.onProphetDying);
             this.bind('Died', this.onProphetDied);
+
+            this.gravity('gravity_blocking_prophet');
 
             this.num_dying_believers = 0;
             this.winning = false;
@@ -1123,6 +1142,17 @@ function initComponents()
             if (this.hit('move_blocking') && this.vy < 0) { // Still touching block, and jumping
                 this.y -= this.dy;
                 this.vy = 0;
+            }
+        },
+
+        onHitGenderedMoveBlocking: function(hitDatas) {
+            if (hitDatas[0].obj.blockedTypes.includes(this.typeStr)) {
+                // Black magic.
+                this.x -= this.dx;
+                if (this.hit('move_blocking') && this.vy < 0) { // Still touching block, and jumping
+                    this.y -= this.dy;
+                    this.vy = 0;
+                }
             }
         },
 
@@ -1292,16 +1322,13 @@ function initComponents()
                 this.x = prev_x;
                 this.setNewDirectionX(0);
             }
-        },
 
-        checkIfStillWallBlocked: function(prophetX) {
-            // Basically, check if the prophet is nearby to "reactivate" believer
-            if (Math.abs(prophetX - this.x) <= (consts.tile_width / 2)) {
-                this.blocked_by_wall = false;
-                return false;
+            if (hitDatas = this.hit('gendered_move_blocking')) {
+                if (hitDatas[0].obj.blockedTypes.includes(this.typeStr)) {
+                    this.x = prev_x;
+                    this.setNewDirectionX(0);
+                }
             }
-
-            return true;
         },
 
         onTrueBelieverDying: function() {
@@ -1351,6 +1378,8 @@ function initComponents()
             addReel(this, 'dying_in_trap_left', 9, 21, 27);
             addReel(this, 'dying_in_zap_left', 9, 28, 35);
 
+            this.gravity('gravity_blocking_male_believer');
+
             this.typeStr = 'Male';
         }
     });
@@ -1372,6 +1401,8 @@ function initComponents()
             addReel(this, 'dying_in_lava_left', 13, 0, 20);
             addReel(this, 'dying_in_trap_left', 13, 21, 27);
             addReel(this, 'dying_in_zap_left', 13, 28, 35);
+
+            this.gravity('gravity_blocking_female_believer');
 
             this.typeStr = 'Female';
         }
@@ -1438,6 +1469,18 @@ function switchToNextLevel()
     } else {
         game_state.cur_level++;
     }
+    Crafty.enterScene('level');
+}
+
+function switchToNextWorld()
+{
+    if (game_state.cur_world + 1 == worlds.length) {
+        return;
+    }
+
+    game_state.cur_level = 0;
+    game_state.cur_world++;
+
     Crafty.enterScene('level');
 }
 
