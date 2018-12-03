@@ -882,9 +882,6 @@ function initComponents()
 
             this.nextCharacter = null;
             this.prevCharacter = null;
-
-            // Male, female or prophet
-            this.type = null;
         },
 
         insertBelieverAfterThis: function(believer) {
